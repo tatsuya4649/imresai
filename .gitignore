@@ -1,3 +1,4 @@
 __pycache__
 *.swap
 *.pth
+.DS_Store
