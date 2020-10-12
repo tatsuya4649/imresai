@@ -1,31 +1,30 @@
 
 import torch
 import torch.nn as nn
-from pblock import PConvBlock
-from pconv import PConv2d
+from pblock import PCBActiv
+from pconv import PartialConv
 
-class PConvNet(nn.Module):
+class PConvUNet(nn.Module):
     def __init__(self,layer_size=7,in_channels=3,upsample_mode="nearest"):
         super().__init__()
         self._upsample_mode = upsample_mode
         self._layer_size = layer_size
-        self.enc_1 = PConvBlock(in_channels,64,False,step_name="down_7")
-        self.enc_2 = PConvBlock(64,128,step_name="down_5")
-        self.enc_3 = PConvBlock(128,256,step_name="down_5")
-        self.enc_4 = PConvBlock(256,512,step_name="down_3")
+        self.enc_1 = PCBActiv(in_channels,64,False,step_name="down_7")
+        self.enc_2 = PCBActiv(64,128,step_name="down_5")
+        self.enc_3 = PCBActiv(128,256,step_name="down_5")
+        self.enc_4 = PCBActiv(256,512,step_name="down_3")
         for i in range(4,self.layer_size):
             name = 'enc_{}'.format(i+1)
-            setattr(self,name,PConvBlock(512,512,step_name="down_3"))
+            setattr(self,name,PCBActiv(512,512,step_name="down_3"))
 
         for i in range(4,self.layer_size):
             name = 'dec_{}'.format(i+1)
-            setattr(self,name,PConvBlock(512+512,512,activation_name='leaky'))
+            setattr(self,name,PCBActiv(512+512,512,activation_name='leaky'))
 
-        self.dec_4 = PConvBlock(512+256,256,activation_name='leaky')
-        self.dec_3 = PConvBlock(256+128,128,activation_name='leaky')
-        self.dec_2 = PConvBlock(128+64,64,activation_name='leaky')
-        self.dec_1 = PConvBlock(64+in_channels,in_channels,batch_norm=False,activation_name=None,conv_bias=True)
-        self.upsample = nn.Upsample(scale_factor=2,mode=self._upsample_mode)
+        self.dec_4 = PCBActiv(512+256,256,activation_name='leaky')
+        self.dec_3 = PCBActiv(256+128,128,activation_name='leaky')
+        self.dec_2 = PCBActiv(128+64,64,activation_name='leaky')
+        self.dec_1 = PCBActiv(64+in_channels,in_channels,batch_norm=False,activation_name=None,conv_bias=True)
 
     @property
     def layer_size(self):
@@ -41,13 +40,15 @@ class PConvNet(nn.Module):
             enc_key = "enc_{}".format(i)
             enc_dict[enc_key],enc_mask_dict[enc_key] = getattr(self,enc_key)(enc_dict[enc_key_pre],enc_mask_dict[enc_key_pre])
             enc_key_pre = enc_key
-        
+        enc_key = "enc_{}".format(self.layer_size)
         output,mask = enc_dict[enc_key],enc_mask_dict[enc_key]
         for i in range(self.layer_size,0,-1):
             enc_key = "enc_{}".format(i-1)
             dec_key = "dec_{}".format(i)
-            output = self.upsample(output)
-            mask = self.upsample(mask)
+            height = enc_dict[enc_key].shape[2]
+            width = enc_dict[enc_key].shape[3]
+            output = torch.nn.functional.interpolate(output,size=(height,width))
+            mask = torch.nn.functional.interpolate(mask,size=(height,width))
             output = torch.cat([output,enc_dict[enc_key]],dim=1)
             mask = torch.cat([mask,enc_mask_dict[enc_key]],dim=1)
             output,mask = getattr(self,dec_key)(output,mask)

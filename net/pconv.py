@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from utils.weight.weight_init import _setting_init,weight_init
 
-class PConv2d(nn.Module):
+class PartialConv(nn.Module):
     def __init__(self,in_channels,out_channels,kernel_size,stride=1,padding=0,dilation=1,groups=1,bias=True,padding_mode="zeros"):
         super().__init__()
         self.input_conv = nn.Conv2d(in_channels,out_channels,kernel_size,stride,padding,dilation,groups,bias,padding_mode)
@@ -28,7 +28,7 @@ class PConv2d(nn.Module):
         with torch.no_grad():
             output_mask = self.mask_conv(mask)
 
-        no_update_holes = output_mask == 0
+        no_update_holes = output_mask == 0.
         mask_sum = output_mask.masked_fill_(no_update_holes,1.0)
         output_pre = (output - output_bias)/mask_sum + output_bias
         output = output_pre.masked_fill_(no_update_holes,0.0)
