@@ -12,9 +12,11 @@ from net.pnet import PConvUNet
 from utils.device import device
 from utils.image import imread
 from utils.mask import mask
+from utils.norm import norm,unnorm
 import argparse
 from matplotlib import pyplot as plt
 import numpy as np
+
 
 parser = argparse.ArgumentParser(description="test script of PConvNet")
 parser.add_argument('-i','--image',help='test image "name",not "path"',default="moon.jpg")
@@ -25,6 +27,7 @@ args = parser.parse_args()
 _TEST_IMAGE_PATH = "images/{}".format(args.image)
 _DEFAULT_MAX_SIZE = 1000
 _MODEL_PATH = args.model_path
+
 device = device()
 net = PConvUNet()
 ckpt_dict = torch.load(_MODEL_PATH,map_location=device)
@@ -32,11 +35,15 @@ net.load_state_dict(ckpt_dict['model'])
 net = net.eval().to(device)
 #making input tensor
 test_tensor = imread(_TEST_IMAGE_PATH,_DEFAULT_MAX_SIZE).to(device)
+test_tensor_ = norm(test_tensor)
 mask = mask(test_tensor).to(device)
 #prediction
-net_output,mask_output = net(test_tensor,mask)
-print(net_output.shape)
-print(mask_output.shape)
+with torch.no_grad():
+	net_output,_ = net(test_tensor_,mask)
+
+net_output = unnorm(net_output)
+output = mask * test_tensor + (1 - mask) * net_output
+
 if args.show:
     fig,axes = plt.subplots(figsize=(10,3),ncols=3)
     im1 = axes[0].imshow(test_tensor[0].cpu().detach().numpy().transpose(1,2,0))

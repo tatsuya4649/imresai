@@ -1,6 +1,7 @@
 
 
 torch
+torchvision
 tqdm
 opencv-python
 argparse
